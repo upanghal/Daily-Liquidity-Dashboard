@@ -18,6 +18,28 @@ def get_sheet_names():
     excel_file = pd.ExcelFile(EXCEL_FILE, engine="openpyxl")
     return excel_file.sheet_names
 
+
+# -----------------------------
+# LIQUIDITY CHECKBOX CALLBACKS
+# -----------------------------
+LIQ_MAIN_KEY = "liq_main"
+LIQ_SUB_KEYS = {
+    "Aggregate Balance (AED million)": "liq_sub_aggregate_balance",
+    "Reserve Requirements (AED million)": "liq_sub_reserve_requirements",
+    "Liquidity Surplus (AED million)": "liq_sub_liquidity_surplus",
+}
+
+def on_main_liquidity_change():
+    parent_value = st.session_state[LIQ_MAIN_KEY]
+    for sub_key in LIQ_SUB_KEYS.values():
+        st.session_state[sub_key] = parent_value
+
+def on_sub_liquidity_change():
+    st.session_state[LIQ_MAIN_KEY] = any(
+        st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
+    )
+
+
 try:
     sheet_names = get_sheet_names()
 except Exception as e:
@@ -47,6 +69,7 @@ df = df.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 is_monthly_volume_sheet = selected_sheet == "M-Bills Secondary Market Volume"
 is_liquidity_indicators_sheet = selected_sheet == "Liquidity Indicators"
 
+# Dynamic title with latest available date
 latest_title_date = df["Date"].max()
 if is_monthly_volume_sheet:
     formatted_title_date = latest_title_date.strftime("%b %Y")
@@ -137,6 +160,7 @@ if not filtered_df.empty:
                 (filtered_df["Date"].dt.to_period("M") >= start_period) &
                 (filtered_df["Date"].dt.to_period("M") <= end_period)
             ]
+
     else:
         min_date = filtered_df["Date"].min().date()
         max_date = filtered_df["Date"].max().date()
@@ -177,52 +201,52 @@ liquidity_combined_metrics = [
     "Liquidity Surplus (AED million)"
 ]
 
-main_liquidity_tab_selected = False
 selected_liquidity_submetrics = []
 
+# -----------------------------
+# LIQUIDITY PARENT/CHILD CHECKBOXES
+# -----------------------------
 if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
-    main_liquidity_tab_selected = st.sidebar.checkbox("Liquidity Surplus", value=False)
+    # Initialize state only once
+    if LIQ_MAIN_KEY not in st.session_state:
+        st.session_state[LIQ_MAIN_KEY] = False
+
+    for metric, key in LIQ_SUB_KEYS.items():
+        if key not in st.session_state:
+            st.session_state[key] = False
+
+    # Keep parent synced with children on every rerun
+    st.session_state[LIQ_MAIN_KEY] = any(
+        st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
+    )
+
+    st.sidebar.checkbox(
+        "Liquidity Surplus",
+        key=LIQ_MAIN_KEY,
+        on_change=on_main_liquidity_change
+    )
 
     st.sidebar.markdown(
         "<div style='margin-left: 22px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
         unsafe_allow_html=True
     )
 
-    liquidity_defaults = {
-        "Aggregate Balance (AED million)": False,
-        "Reserve Requirements (AED million)": False,
-        "Liquidity Surplus (AED million)": False
+    sub_labels = {
+        "Aggregate Balance (AED million)": "\u2003\u2003Aggregate Balance (AED million)",
+        "Reserve Requirements (AED million)": "\u2003\u2003Reserve Requirements (AED million)",
+        "Liquidity Surplus (AED million)": "\u2003\u2003Liquidity Surplus (AED million)",
     }
 
-    if main_liquidity_tab_selected:
-        liquidity_defaults = {
-            "Aggregate Balance (AED million)": True,
-            "Reserve Requirements (AED million)": True,
-            "Liquidity Surplus (AED million)": True
-        }
-
     for metric in liquidity_combined_metrics:
-        checked = st.sidebar.checkbox(
-            metric,
-            value=liquidity_defaults[metric],
-            key=f"liq_sub_{metric}"
+        st.sidebar.checkbox(
+            sub_labels[metric],
+            key=LIQ_SUB_KEYS[metric],
+            on_change=on_sub_liquidity_change
         )
-
-        st.sidebar.markdown(
-            """
-            <style>
-            div[data-testid="stSidebar"] label p {
-                line-height: 1.2rem;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        if checked:
+        if st.session_state.get(LIQ_SUB_KEYS[metric], False):
             selected_liquidity_submetrics.append(metric)
 
-# Exclude liquidity metrics from general list only for Liquidity Indicators sheet
+# Exclude the 3 liquidity metrics from the normal list on Liquidity Indicators sheet
 remaining_numeric_columns = numeric_columns.copy()
 if is_liquidity_indicators_sheet:
     remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
@@ -288,6 +312,7 @@ with tab2:
         mean_line_color = "darkgray"
         last_value_label_color = "#0B3D91"
 
+        # Liquidity combined chart
         if selected_liquidity_submetrics:
             combined_df = filtered_df[["Date"] + selected_liquidity_submetrics].dropna(how="all").sort_values("Date")
 
@@ -386,6 +411,7 @@ with tab2:
 
                 st.plotly_chart(fig, use_container_width=True)
 
+        # M-Bills combined chart
         if selected_sheet == "M-Bills Yields" and selected_columns:
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
@@ -584,6 +610,7 @@ with tab4:
         if is_monthly_volume_sheet:
             for col in analysis_selected_columns:
                 full_series = filtered_df[["Date", col]].dropna().sort_values("Date")
+
                 if full_series.empty:
                     continue
 
