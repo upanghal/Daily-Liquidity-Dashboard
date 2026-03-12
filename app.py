@@ -21,9 +21,6 @@ def get_sheet_names():
     return excel_file.sheet_names
 
 
-# -----------------------------
-# LIQUIDITY CHECKBOX CALLBACKS
-# -----------------------------
 LIQ_MAIN_KEY = "liq_main"
 LIQ_SUB_KEYS = {
     "Aggregate Balance (AED million)": "liq_sub_aggregate_balance",
@@ -73,7 +70,6 @@ df = df.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 is_monthly_volume_sheet = selected_sheet == "M-Bills Secondary Market Volume"
 is_liquidity_indicators_sheet = selected_sheet == "Liquidity Indicators"
 
-# Dynamic title with latest available date
 latest_title_date = df["Date"].max()
 if is_monthly_volume_sheet:
     formatted_title_date = latest_title_date.strftime("%b %Y")
@@ -102,9 +98,6 @@ numeric_columns = [
     if col != "Date" and pd.api.types.is_numeric_dtype(df[col])
 ]
 
-# Default selection:
-# - all sheets: first metric
-# - Liquidity Indicators sheet: Liquidity Surplus
 if is_liquidity_indicators_sheet and "Liquidity Surplus (AED million)" in numeric_columns:
     default_cols = ["Liquidity Surplus (AED million)"]
 else:
@@ -172,7 +165,6 @@ if not filtered_df.empty:
                 (filtered_df["Date"].dt.to_period("M") >= start_period) &
                 (filtered_df["Date"].dt.to_period("M") <= end_period)
             ]
-
     else:
         min_date = filtered_df["Date"].min().date()
         max_date = filtered_df["Date"].max().date()
@@ -215,9 +207,6 @@ liquidity_combined_metrics = [
 selected_liquidity_submetrics = []
 remaining_numeric_columns = numeric_columns.copy()
 
-# -----------------------------
-# LIQUIDITY INDICATORS SHEET LOGIC
-# -----------------------------
 if is_liquidity_indicators_sheet:
     remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
 
@@ -237,13 +226,11 @@ if is_liquidity_indicators_sheet:
         unsafe_allow_html=True
     )
 
-    # Parent checkbox row — checkbox square moved right using columns
-    p1, p2, p3 = st.sidebar.columns([0.12, 0.12, 0.76])
+    # Main tab aligned with normal metrics
+    p1, p2 = st.sidebar.columns([0.12, 0.88])
     with p1:
-        st.write("")
-    with p2:
         st.checkbox("", key=LIQ_MAIN_KEY, on_change=on_main_liquidity_change, label_visibility="collapsed")
-    with p3:
+    with p2:
         st.markdown(
             "<div style='padding-top: 2px;'>Liquidity Surplus</div>",
             unsafe_allow_html=True
@@ -254,7 +241,7 @@ if is_liquidity_indicators_sheet:
         unsafe_allow_html=True
     )
 
-    # Child rows — checkbox square also moved right using columns
+    # Child rows with checkbox square moved right
     for metric in liquidity_combined_metrics:
         c1, c2, c3 = st.sidebar.columns([0.16, 0.12, 0.72])
         with c1:
@@ -275,7 +262,6 @@ if is_liquidity_indicators_sheet:
         if st.session_state.get(LIQ_SUB_KEYS[metric], False):
             selected_liquidity_submetrics.append(metric)
 
-    # Remaining groups
     section_1 = [
         "Overnight Deposit Facility (AED million)",
         "Overnight Murabaha Facility",
@@ -365,7 +351,6 @@ if is_liquidity_indicators_sheet:
         )
         if checked:
             selected_columns.append(col)
-
 else:
     for col in remaining_numeric_columns:
         checked = st.sidebar.checkbox(
@@ -855,7 +840,7 @@ with tab4:
                 pre_max = pre_series[col].max() if not pre_series.empty else None
                 post_max = post_series[col].max() if not post_series.empty else None
                 pre_min = pre_series[col].min() if not pre_series.empty else None
-                post_min = post_series[col].min() if not pre_series.empty else None
+                post_min = post_series[col].min() if not post_series.empty else None
 
                 pre_point_df = full_series[full_series["Date"] <= pre_conflict_point_date]
                 pre_conflict_value = pre_point_df.iloc[-1][col] if not pre_point_df.empty else None
