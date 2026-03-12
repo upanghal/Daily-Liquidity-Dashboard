@@ -98,8 +98,13 @@ numeric_columns = [
     if col != "Date" and pd.api.types.is_numeric_dtype(df[col])
 ]
 
-# First metric auto-selected for every sheet
-default_cols = numeric_columns[:1] if len(numeric_columns) >= 1 else numeric_columns
+# Default selection:
+# - all sheets: first metric
+# - Liquidity Indicators sheet: Liquidity Surplus
+if is_liquidity_indicators_sheet and "Liquidity Surplus (AED million)" in numeric_columns:
+    default_cols = ["Liquidity Surplus (AED million)"]
+else:
+    default_cols = numeric_columns[:1] if len(numeric_columns) >= 1 else numeric_columns
 
 st.sidebar.header("Filters")
 
@@ -212,22 +217,28 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
     if LIQ_MAIN_KEY not in st.session_state:
         st.session_state[LIQ_MAIN_KEY] = False
 
+    # Default for Liquidity Indicators sheet = Liquidity Surplus selected
     for metric, key in LIQ_SUB_KEYS.items():
         if key not in st.session_state:
-            st.session_state[key] = False
+            st.session_state[key] = (metric == "Liquidity Surplus (AED million)")
 
     st.session_state[LIQ_MAIN_KEY] = any(
         st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
     )
 
-    # Header 1
+    # HEADER 1
     st.sidebar.markdown(
         "<div style='font-size: 1rem; font-weight: 700; margin-top: 8px; margin-bottom: 6px;'>Liquidity Indicators</div>",
         unsafe_allow_html=True
     )
 
+    # Parent checkbox visually shifted right
+    st.sidebar.markdown(
+        "<div style='margin-left: 18px; margin-bottom: -30px;'></div>",
+        unsafe_allow_html=True
+    )
     st.sidebar.checkbox(
-        "Liquidity Surplus",
+        "\u2003Liquidity Surplus",
         key=LIQ_MAIN_KEY,
         on_change=on_main_liquidity_change
     )
@@ -237,10 +248,11 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
         unsafe_allow_html=True
     )
 
+    # Sub-checkboxes shifted right
     sub_labels = {
-        "Aggregate Balance (AED million)": "\u2003\u2003\u2003Aggregate Balance (AED million)",
-        "Reserve Requirements (AED million)": "\u2003\u2003\u2003Reserve Requirements (AED million)",
-        "Liquidity Surplus (AED million)": "\u2003\u2003\u2003Liquidity Surplus (AED million)",
+        "Aggregate Balance (AED million)": "\u2003\u2003\u2003\u2003Aggregate Balance (AED million)",
+        "Reserve Requirements (AED million)": "\u2003\u2003\u2003\u2003Reserve Requirements (AED million)",
+        "Liquidity Surplus (AED million)": "\u2003\u2003\u2003\u2003Liquidity Surplus (AED million)",
     }
 
     for metric in liquidity_combined_metrics:
@@ -252,29 +264,29 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
         if st.session_state.get(LIQ_SUB_KEYS[metric], False):
             selected_liquidity_submetrics.append(metric)
 
-# -----------------------------
-# GROUPED HEADERS FOR LIQUIDITY INDICATORS SHEET
-# -----------------------------
 remaining_numeric_columns = numeric_columns.copy()
 if is_liquidity_indicators_sheet:
     remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
 
-    section_2 = [
+    section_1 = [
         "Overnight Deposit Facility (AED million)",
         "Overnight Murabaha Facility",
         "Reserve Account (AED million)",
-        "Average Surplus in Reserve Maintenance Period (AED million)",
+        "Average Surplus in Reserve Maintenance Period (AED million)"
+    ]
+
+    section_2 = [
         "Marginal Lending Facility / Collateralized Murabaha Facility (MLF/CMF) (AED million)",
         "Contingent Liquidity Insurance Facility (CLIF) (AED million)"
     ]
 
     section_3 = [
-        "Change in Aggregate Balance (AED million)"
+        "Change in Aggregate Balance (AED million)",
+        "Autonomous Factors (AED million)",
+        "Monetary Operations (AED million)"
     ]
 
     section_4 = [
-        "Autonomous Factors (AED million)",
-        "Monetary Operations (AED million)",
         "Net Issuance of Monetary Bills (AED million)",
         "Net Issuance of Islamic Certificates of Deposit (AED million)"
     ]
@@ -295,11 +307,12 @@ if is_liquidity_indicators_sheet:
                 if checked:
                     selected_columns.append(col)
 
+    render_group("Liquidity Indicators", section_1)
     render_group("Standing Credit & Liquidity Insurance Facilities", section_2)
     render_group("Change in Aggregate Balance", section_3)
     render_group("Open Market Operations", section_4)
 
-    grouped_items = set(section_2 + section_3 + section_4)
+    grouped_items = set(section_1 + section_2 + section_3 + section_4)
     leftover_items = [col for col in remaining_numeric_columns if col not in grouped_items]
 
     if leftover_items:
@@ -801,7 +814,7 @@ with tab4:
                 pre_max = pre_series[col].max() if not pre_series.empty else None
                 post_max = post_series[col].max() if not post_series.empty else None
                 pre_min = pre_series[col].min() if not pre_series.empty else None
-                post_min = post_series[col].min() if not post_series.empty else None
+                post_min = post_series[col].min() if not pre_series.empty else None
 
                 pre_point_df = full_series[full_series["Date"] <= pre_conflict_point_date]
                 pre_conflict_value = pre_point_df.iloc[-1][col] if not pre_point_df.empty else None
