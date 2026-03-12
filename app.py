@@ -166,9 +166,6 @@ chart_type = st.sidebar.selectbox(
     ["Line Chart", "Scatter Plot"]
 )
 
-# -----------------------------
-# CHECKBOX SELECTION LOGIC
-# -----------------------------
 st.sidebar.markdown("**Select Column(s) to Plot / Analyze**")
 
 default_cols = numeric_columns[:3] if len(numeric_columns) >= 3 else numeric_columns
@@ -186,21 +183,46 @@ selected_liquidity_submetrics = []
 if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
     main_liquidity_tab_selected = st.sidebar.checkbox("Liquidity Surplus", value=False)
 
+    st.sidebar.markdown(
+        "<div style='margin-left: 22px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
+        unsafe_allow_html=True
+    )
+
+    liquidity_defaults = {
+        "Aggregate Balance (AED million)": False,
+        "Reserve Requirements (AED million)": False,
+        "Liquidity Surplus (AED million)": False
+    }
+
     if main_liquidity_tab_selected:
-        st.sidebar.markdown("&nbsp;&nbsp;&nbsp;&nbsp;**Select Liquidity Metrics**", unsafe_allow_html=True)
+        liquidity_defaults = {
+            "Aggregate Balance (AED million)": True,
+            "Reserve Requirements (AED million)": True,
+            "Liquidity Surplus (AED million)": True
+        }
 
-        default_liq = liquidity_combined_metrics.copy()
+    for metric in liquidity_combined_metrics:
+        checked = st.sidebar.checkbox(
+            metric,
+            value=liquidity_defaults[metric],
+            key=f"liq_sub_{metric}"
+        )
 
-        for metric in liquidity_combined_metrics:
-            checked = st.sidebar.checkbox(
-                f"↳ {metric}",
-                value=(metric in default_liq),
-                key=f"liq_sub_{metric}"
-            )
-            if checked:
-                selected_liquidity_submetrics.append(metric)
+        st.sidebar.markdown(
+            """
+            <style>
+            div[data-testid="stSidebar"] label p {
+                line-height: 1.2rem;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
 
-# Exclude the 3 liquidity metrics from the normal checkbox list on Liquidity Indicators sheet
+        if checked:
+            selected_liquidity_submetrics.append(metric)
+
+# Exclude liquidity metrics from general list only for Liquidity Indicators sheet
 remaining_numeric_columns = numeric_columns.copy()
 if is_liquidity_indicators_sheet:
     remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
@@ -266,9 +288,6 @@ with tab2:
         mean_line_color = "darkgray"
         last_value_label_color = "#0B3D91"
 
-        # -----------------------------
-        # LIQUIDITY SURPLUS MAIN TAB CHART
-        # -----------------------------
         if selected_liquidity_submetrics:
             combined_df = filtered_df[["Date"] + selected_liquidity_submetrics].dropna(how="all").sort_values("Date")
 
@@ -281,7 +300,6 @@ with tab2:
                     "Liquidity Surplus (AED million)": "#0B3D91"
                 }
 
-                # Liquidity Surplus thick only if 2 or more selected
                 liquidity_line_width = 3.5 if len(selected_liquidity_submetrics) >= 2 else 1.8
 
                 for metric in selected_liquidity_submetrics:
@@ -289,10 +307,7 @@ with tab2:
                     if metric_df.empty:
                         continue
 
-                    if metric == "Liquidity Surplus (AED million)":
-                        line_width = liquidity_line_width
-                    else:
-                        line_width = 1.8
+                    line_width = liquidity_line_width if metric == "Liquidity Surplus (AED million)" else 1.8
 
                     if chart_type == "Line Chart":
                         fig.add_trace(
@@ -371,9 +386,6 @@ with tab2:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-        # -----------------------------
-        # M-BILLS YIELDS COMBINED
-        # -----------------------------
         if selected_sheet == "M-Bills Yields" and selected_columns:
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
@@ -456,9 +468,6 @@ with tab2:
 
             st.plotly_chart(fig, use_container_width=True)
 
-        # -----------------------------
-        # NORMAL INDIVIDUAL CHARTS
-        # -----------------------------
         elif selected_sheet != "M-Bills Yields":
             for i, col in enumerate(selected_columns):
                 st.markdown(f"### {col}")
