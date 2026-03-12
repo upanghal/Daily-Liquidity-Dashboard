@@ -98,6 +98,9 @@ numeric_columns = [
     if col != "Date" and pd.api.types.is_numeric_dtype(df[col])
 ]
 
+# First metric auto-selected for every sheet
+default_cols = numeric_columns[:1] if len(numeric_columns) >= 1 else numeric_columns
+
 st.sidebar.header("Filters")
 
 filtered_df = df.copy()
@@ -192,7 +195,6 @@ chart_type = st.sidebar.selectbox(
 
 st.sidebar.markdown("**Select Column(s) to Plot / Analyze**")
 
-default_cols = numeric_columns[:3] if len(numeric_columns) >= 3 else numeric_columns
 selected_columns = []
 
 liquidity_combined_metrics = [
@@ -207,7 +209,6 @@ selected_liquidity_submetrics = []
 # LIQUIDITY PARENT/CHILD CHECKBOXES
 # -----------------------------
 if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
-    # Initialize state only once
     if LIQ_MAIN_KEY not in st.session_state:
         st.session_state[LIQ_MAIN_KEY] = False
 
@@ -215,9 +216,14 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
         if key not in st.session_state:
             st.session_state[key] = False
 
-    # Keep parent synced with children on every rerun
     st.session_state[LIQ_MAIN_KEY] = any(
         st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
+    )
+
+    # Header 1
+    st.sidebar.markdown(
+        "<div style='font-size: 1rem; font-weight: 700; margin-top: 8px; margin-bottom: 6px;'>Liquidity Indicators</div>",
+        unsafe_allow_html=True
     )
 
     st.sidebar.checkbox(
@@ -227,14 +233,14 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
     )
 
     st.sidebar.markdown(
-        "<div style='margin-left: 22px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
+        "<div style='margin-left: 34px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
         unsafe_allow_html=True
     )
 
     sub_labels = {
-        "Aggregate Balance (AED million)": "\u2003\u2003Aggregate Balance (AED million)",
-        "Reserve Requirements (AED million)": "\u2003\u2003Reserve Requirements (AED million)",
-        "Liquidity Surplus (AED million)": "\u2003\u2003Liquidity Surplus (AED million)",
+        "Aggregate Balance (AED million)": "\u2003\u2003\u2003Aggregate Balance (AED million)",
+        "Reserve Requirements (AED million)": "\u2003\u2003\u2003Reserve Requirements (AED million)",
+        "Liquidity Surplus (AED million)": "\u2003\u2003\u2003Liquidity Surplus (AED million)",
     }
 
     for metric in liquidity_combined_metrics:
@@ -246,19 +252,75 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
         if st.session_state.get(LIQ_SUB_KEYS[metric], False):
             selected_liquidity_submetrics.append(metric)
 
-# Exclude the 3 liquidity metrics from the normal list on Liquidity Indicators sheet
+# -----------------------------
+# GROUPED HEADERS FOR LIQUIDITY INDICATORS SHEET
+# -----------------------------
 remaining_numeric_columns = numeric_columns.copy()
 if is_liquidity_indicators_sheet:
     remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
 
-for col in remaining_numeric_columns:
-    checked = st.sidebar.checkbox(
-        col,
-        value=(col in default_cols and col not in liquidity_combined_metrics),
-        key=f"metric_checkbox_{selected_sheet}_{col}"
-    )
-    if checked:
-        selected_columns.append(col)
+    section_2 = [
+        "Overnight Deposit Facility (AED million)",
+        "Overnight Murabaha Facility",
+        "Reserve Account (AED million)",
+        "Average Surplus in Reserve Maintenance Period (AED million)",
+        "Marginal Lending Facility / Collateralized Murabaha Facility (MLF/CMF) (AED million)",
+        "Contingent Liquidity Insurance Facility (CLIF) (AED million)"
+    ]
+
+    section_3 = [
+        "Change in Aggregate Balance (AED million)"
+    ]
+
+    section_4 = [
+        "Autonomous Factors (AED million)",
+        "Monetary Operations (AED million)",
+        "Net Issuance of Monetary Bills (AED million)",
+        "Net Issuance of Islamic Certificates of Deposit (AED million)"
+    ]
+
+    def render_group(header, items):
+        valid_items = [item for item in items if item in remaining_numeric_columns]
+        if valid_items:
+            st.sidebar.markdown(
+                f"<div style='font-size: 1rem; font-weight: 700; margin-top: 10px; margin-bottom: 6px;'>{header}</div>",
+                unsafe_allow_html=True
+            )
+            for col in valid_items:
+                checked = st.sidebar.checkbox(
+                    col,
+                    value=(col in default_cols),
+                    key=f"metric_checkbox_{selected_sheet}_{col}"
+                )
+                if checked:
+                    selected_columns.append(col)
+
+    render_group("Standing Credit & Liquidity Insurance Facilities", section_2)
+    render_group("Change in Aggregate Balance", section_3)
+    render_group("Open Market Operations", section_4)
+
+    grouped_items = set(section_2 + section_3 + section_4)
+    leftover_items = [col for col in remaining_numeric_columns if col not in grouped_items]
+
+    if leftover_items:
+        for col in leftover_items:
+            checked = st.sidebar.checkbox(
+                col,
+                value=(col in default_cols),
+                key=f"metric_checkbox_{selected_sheet}_{col}"
+            )
+            if checked:
+                selected_columns.append(col)
+
+else:
+    for col in remaining_numeric_columns:
+        checked = st.sidebar.checkbox(
+            col,
+            value=(col in default_cols),
+            key=f"metric_checkbox_{selected_sheet}_{col}"
+        )
+        if checked:
+            selected_columns.append(col)
 
 tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Charts", "Data Preview", "Analysis"])
 
@@ -312,7 +374,6 @@ with tab2:
         mean_line_color = "darkgray"
         last_value_label_color = "#0B3D91"
 
-        # Liquidity combined chart
         if selected_liquidity_submetrics:
             combined_df = filtered_df[["Date"] + selected_liquidity_submetrics].dropna(how="all").sort_values("Date")
 
@@ -411,7 +472,6 @@ with tab2:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-        # M-Bills combined chart
         if selected_sheet == "M-Bills Yields" and selected_columns:
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
