@@ -210,49 +210,51 @@ liquidity_combined_metrics = [
 
 selected_liquidity_submetrics = []
 
+remaining_numeric_columns = numeric_columns.copy()
+
 # -----------------------------
-# LIQUIDITY PARENT/CHILD CHECKBOXES
+# LIQUIDITY INDICATORS SHEET LOGIC
 # -----------------------------
-if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
+if is_liquidity_indicators_sheet:
+    # Remove these 3 from normal list
+    remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
+
+    # Initialize liquidity state only once
     if LIQ_MAIN_KEY not in st.session_state:
         st.session_state[LIQ_MAIN_KEY] = False
 
-    # Default for Liquidity Indicators sheet = Liquidity Surplus selected
     for metric, key in LIQ_SUB_KEYS.items():
         if key not in st.session_state:
             st.session_state[key] = (metric == "Liquidity Surplus (AED million)")
 
+    # Keep parent synced
     st.session_state[LIQ_MAIN_KEY] = any(
         st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
     )
 
-    # HEADER 1
+    # ---- Header: Liquidity Indicators (only once) ----
     st.sidebar.markdown(
         "<div style='font-size: 1rem; font-weight: 700; margin-top: 8px; margin-bottom: 6px;'>Liquidity Indicators</div>",
         unsafe_allow_html=True
     )
 
-    # Parent checkbox visually shifted right
-    st.sidebar.markdown(
-        "<div style='margin-left: 18px; margin-bottom: -30px;'></div>",
-        unsafe_allow_html=True
-    )
+    # Parent checkbox shifted right
     st.sidebar.checkbox(
-        "\u2003Liquidity Surplus",
+        "\u2003\u2003Liquidity Surplus",
         key=LIQ_MAIN_KEY,
         on_change=on_main_liquidity_change
     )
 
     st.sidebar.markdown(
-        "<div style='margin-left: 34px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
+        "<div style='margin-left: 42px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
         unsafe_allow_html=True
     )
 
-    # Sub-checkboxes shifted right
+    # Child checkboxes shifted right
     sub_labels = {
-        "Aggregate Balance (AED million)": "\u2003\u2003\u2003\u2003Aggregate Balance (AED million)",
-        "Reserve Requirements (AED million)": "\u2003\u2003\u2003\u2003Reserve Requirements (AED million)",
-        "Liquidity Surplus (AED million)": "\u2003\u2003\u2003\u2003Liquidity Surplus (AED million)",
+        "Aggregate Balance (AED million)": "\u2003\u2003\u2003\u2003\u2003Aggregate Balance (AED million)",
+        "Reserve Requirements (AED million)": "\u2003\u2003\u2003\u2003\u2003Reserve Requirements (AED million)",
+        "Liquidity Surplus (AED million)": "\u2003\u2003\u2003\u2003\u2003Liquidity Surplus (AED million)",
     }
 
     for metric in liquidity_combined_metrics:
@@ -264,10 +266,7 @@ if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in
         if st.session_state.get(LIQ_SUB_KEYS[metric], False):
             selected_liquidity_submetrics.append(metric)
 
-remaining_numeric_columns = numeric_columns.copy()
-if is_liquidity_indicators_sheet:
-    remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
-
+    # Continue same section WITHOUT repeating Liquidity Indicators header
     section_1 = [
         "Overnight Deposit Facility (AED million)",
         "Overnight Murabaha Facility",
@@ -291,32 +290,8 @@ if is_liquidity_indicators_sheet:
         "Net Issuance of Islamic Certificates of Deposit (AED million)"
     ]
 
-    def render_group(header, items):
-        valid_items = [item for item in items if item in remaining_numeric_columns]
-        if valid_items:
-            st.sidebar.markdown(
-                f"<div style='font-size: 1rem; font-weight: 700; margin-top: 10px; margin-bottom: 6px;'>{header}</div>",
-                unsafe_allow_html=True
-            )
-            for col in valid_items:
-                checked = st.sidebar.checkbox(
-                    col,
-                    value=(col in default_cols),
-                    key=f"metric_checkbox_{selected_sheet}_{col}"
-                )
-                if checked:
-                    selected_columns.append(col)
-
-    render_group("Liquidity Indicators", section_1)
-    render_group("Standing Credit & Liquidity Insurance Facilities", section_2)
-    render_group("Change in Aggregate Balance", section_3)
-    render_group("Open Market Operations", section_4)
-
-    grouped_items = set(section_1 + section_2 + section_3 + section_4)
-    leftover_items = [col for col in remaining_numeric_columns if col not in grouped_items]
-
-    if leftover_items:
-        for col in leftover_items:
+    for col in section_1:
+        if col in remaining_numeric_columns:
             checked = st.sidebar.checkbox(
                 col,
                 value=(col in default_cols),
@@ -324,6 +299,63 @@ if is_liquidity_indicators_sheet:
             )
             if checked:
                 selected_columns.append(col)
+
+    valid_section_2 = [col for col in section_2 if col in remaining_numeric_columns]
+    if valid_section_2:
+        st.sidebar.markdown(
+            "<div style='font-size: 1rem; font-weight: 700; margin-top: 10px; margin-bottom: 6px;'>Standing Credit & Liquidity Insurance Facilities</div>",
+            unsafe_allow_html=True
+        )
+        for col in valid_section_2:
+            checked = st.sidebar.checkbox(
+                col,
+                value=(col in default_cols),
+                key=f"metric_checkbox_{selected_sheet}_{col}"
+            )
+            if checked:
+                selected_columns.append(col)
+
+    valid_section_3 = [col for col in section_3 if col in remaining_numeric_columns]
+    if valid_section_3:
+        st.sidebar.markdown(
+            "<div style='font-size: 1rem; font-weight: 700; margin-top: 10px; margin-bottom: 6px;'>Change in Aggregate Balance</div>",
+            unsafe_allow_html=True
+        )
+        for col in valid_section_3:
+            checked = st.sidebar.checkbox(
+                col,
+                value=(col in default_cols),
+                key=f"metric_checkbox_{selected_sheet}_{col}"
+            )
+            if checked:
+                selected_columns.append(col)
+
+    valid_section_4 = [col for col in section_4 if col in remaining_numeric_columns]
+    if valid_section_4:
+        st.sidebar.markdown(
+            "<div style='font-size: 1rem; font-weight: 700; margin-top: 10px; margin-bottom: 6px;'>Open Market Operations</div>",
+            unsafe_allow_html=True
+        )
+        for col in valid_section_4:
+            checked = st.sidebar.checkbox(
+                col,
+                value=(col in default_cols),
+                key=f"metric_checkbox_{selected_sheet}_{col}"
+            )
+            if checked:
+                selected_columns.append(col)
+
+    grouped_items = set(section_1 + section_2 + section_3 + section_4)
+    leftover_items = [col for col in remaining_numeric_columns if col not in grouped_items]
+
+    for col in leftover_items:
+        checked = st.sidebar.checkbox(
+            col,
+            value=(col in default_cols),
+            key=f"metric_checkbox_{selected_sheet}_{col}"
+        )
+        if checked:
+            selected_columns.append(col)
 
 else:
     for col in remaining_numeric_columns:
@@ -387,6 +419,7 @@ with tab2:
         mean_line_color = "darkgray"
         last_value_label_color = "#0B3D91"
 
+        # Liquidity combined chart
         if selected_liquidity_submetrics:
             combined_df = filtered_df[["Date"] + selected_liquidity_submetrics].dropna(how="all").sort_values("Date")
 
@@ -485,6 +518,7 @@ with tab2:
 
                 st.plotly_chart(fig, use_container_width=True)
 
+        # M-Bills Yields combined chart
         if selected_sheet == "M-Bills Yields" and selected_columns:
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
@@ -567,6 +601,7 @@ with tab2:
 
             st.plotly_chart(fig, use_container_width=True)
 
+        # Normal individual charts
         elif selected_sheet != "M-Bills Yields":
             for i, col in enumerate(selected_columns):
                 st.markdown(f"### {col}")
@@ -814,7 +849,7 @@ with tab4:
                 pre_max = pre_series[col].max() if not pre_series.empty else None
                 post_max = post_series[col].max() if not post_series.empty else None
                 pre_min = pre_series[col].min() if not pre_series.empty else None
-                post_min = post_series[col].min() if not pre_series.empty else None
+                post_min = post_series[col].min() if not post_series.empty else None
 
                 pre_point_df = full_series[full_series["Date"] <= pre_conflict_point_date]
                 pre_conflict_value = pre_point_df.iloc[-1][col] if not pre_point_df.empty else None
