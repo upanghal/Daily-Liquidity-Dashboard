@@ -6,10 +6,7 @@ st.set_page_config(page_title="Daily Liquidity Dashboard", layout="wide")
 
 st.markdown("Upload an Excel file and analyze trends by date / time period.")
 
-uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
-
-if uploaded_file is not None:
-    excel_file = pd.ExcelFile(uploaded_file)
+excel_file = pd.ExcelFile("Daily_Liquidity_Indicators.xlsx")
     sheet_names = excel_file.sheet_names
 
     selected_sheet = st.sidebar.selectbox("Select Sheet", sheet_names)
@@ -681,4 +678,5 @@ if uploaded_file is not None:
 
 else:
     st.title("Daily Liquidity Dashboard")
+
     st.info("Upload an Excel file to begin.")
