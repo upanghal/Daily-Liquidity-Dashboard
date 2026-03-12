@@ -9,9 +9,11 @@ st.markdown("Analyze trends by date / time period.")
 
 EXCEL_FILE = "Daily Liquidity Indicators.xlsx"
 
+
 @st.cache_data
 def load_excel_sheet(sheet_name):
     return pd.read_excel(EXCEL_FILE, sheet_name=sheet_name, engine="openpyxl")
+
 
 @st.cache_data
 def get_sheet_names():
@@ -29,10 +31,12 @@ LIQ_SUB_KEYS = {
     "Liquidity Surplus (AED million)": "liq_sub_liquidity_surplus",
 }
 
+
 def on_main_liquidity_change():
     parent_value = st.session_state[LIQ_MAIN_KEY]
     for sub_key in LIQ_SUB_KEYS.values():
         st.session_state[sub_key] = parent_value
+
 
 def on_sub_liquidity_change():
     st.session_state[LIQ_MAIN_KEY] = any(
@@ -209,17 +213,14 @@ liquidity_combined_metrics = [
 ]
 
 selected_liquidity_submetrics = []
-
 remaining_numeric_columns = numeric_columns.copy()
 
 # -----------------------------
 # LIQUIDITY INDICATORS SHEET LOGIC
 # -----------------------------
 if is_liquidity_indicators_sheet:
-    # Remove these 3 from normal list
     remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
 
-    # Initialize liquidity state only once
     if LIQ_MAIN_KEY not in st.session_state:
         st.session_state[LIQ_MAIN_KEY] = False
 
@@ -227,46 +228,54 @@ if is_liquidity_indicators_sheet:
         if key not in st.session_state:
             st.session_state[key] = (metric == "Liquidity Surplus (AED million)")
 
-    # Keep parent synced
     st.session_state[LIQ_MAIN_KEY] = any(
         st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
     )
 
-    # ---- Header: Liquidity Indicators (only once) ----
     st.sidebar.markdown(
         "<div style='font-size: 1rem; font-weight: 700; margin-top: 8px; margin-bottom: 6px;'>Liquidity Indicators</div>",
         unsafe_allow_html=True
     )
 
-    # Parent checkbox shifted right
-    st.sidebar.checkbox(
-        "\u2003\u2003Liquidity Surplus",
-        key=LIQ_MAIN_KEY,
-        on_change=on_main_liquidity_change
-    )
+    # Parent checkbox row — checkbox square moved right using columns
+    p1, p2, p3 = st.sidebar.columns([0.12, 0.12, 0.76])
+    with p1:
+        st.write("")
+    with p2:
+        st.checkbox("", key=LIQ_MAIN_KEY, on_change=on_main_liquidity_change, label_visibility="collapsed")
+    with p3:
+        st.markdown(
+            "<div style='padding-top: 2px;'>Liquidity Surplus</div>",
+            unsafe_allow_html=True
+        )
 
     st.sidebar.markdown(
-        "<div style='margin-left: 42px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
+        "<div style='margin-left: 58px; font-size: 0.90rem; font-weight: 600; margin-top: 2px; margin-bottom: 2px;'>Select Liquidity Metrics</div>",
         unsafe_allow_html=True
     )
 
-    # Child checkboxes shifted right
-    sub_labels = {
-        "Aggregate Balance (AED million)": "\u2003\u2003\u2003\u2003\u2003Aggregate Balance (AED million)",
-        "Reserve Requirements (AED million)": "\u2003\u2003\u2003\u2003\u2003Reserve Requirements (AED million)",
-        "Liquidity Surplus (AED million)": "\u2003\u2003\u2003\u2003\u2003Liquidity Surplus (AED million)",
-    }
-
+    # Child rows — checkbox square also moved right using columns
     for metric in liquidity_combined_metrics:
-        st.sidebar.checkbox(
-            sub_labels[metric],
-            key=LIQ_SUB_KEYS[metric],
-            on_change=on_sub_liquidity_change
-        )
+        c1, c2, c3 = st.sidebar.columns([0.16, 0.12, 0.72])
+        with c1:
+            st.write("")
+        with c2:
+            st.checkbox(
+                "",
+                key=LIQ_SUB_KEYS[metric],
+                on_change=on_sub_liquidity_change,
+                label_visibility="collapsed"
+            )
+        with c3:
+            st.markdown(
+                f"<div style='padding-top: 2px; font-size: 0.95rem;'>{metric}</div>",
+                unsafe_allow_html=True
+            )
+
         if st.session_state.get(LIQ_SUB_KEYS[metric], False):
             selected_liquidity_submetrics.append(metric)
 
-    # Continue same section WITHOUT repeating Liquidity Indicators header
+    # Remaining groups
     section_1 = [
         "Overnight Deposit Facility (AED million)",
         "Overnight Murabaha Facility",
@@ -419,7 +428,6 @@ with tab2:
         mean_line_color = "darkgray"
         last_value_label_color = "#0B3D91"
 
-        # Liquidity combined chart
         if selected_liquidity_submetrics:
             combined_df = filtered_df[["Date"] + selected_liquidity_submetrics].dropna(how="all").sort_values("Date")
 
@@ -518,7 +526,6 @@ with tab2:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-        # M-Bills Yields combined chart
         if selected_sheet == "M-Bills Yields" and selected_columns:
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
@@ -601,7 +608,6 @@ with tab2:
 
             st.plotly_chart(fig, use_container_width=True)
 
-        # Normal individual charts
         elif selected_sheet != "M-Bills Yields":
             for i, col in enumerate(selected_columns):
                 st.markdown(f"### {col}")
@@ -849,7 +855,7 @@ with tab4:
                 pre_max = pre_series[col].max() if not pre_series.empty else None
                 post_max = post_series[col].max() if not post_series.empty else None
                 pre_min = pre_series[col].min() if not pre_series.empty else None
-                post_min = post_series[col].min() if not post_series.empty else None
+                post_min = post_series[col].min() if not pre_series.empty else None
 
                 pre_point_df = full_series[full_series["Date"] <= pre_conflict_point_date]
                 pre_conflict_value = pre_point_df.iloc[-1][col] if not pre_point_df.empty else None
