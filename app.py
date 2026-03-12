@@ -22,7 +22,9 @@ try:
     sheet_names = get_sheet_names()
 except Exception as e:
     st.title("Daily Liquidity Dashboard")
-    st.error(f"Could not load the Excel file '{EXCEL_FILE}'. Please make sure it is uploaded to the GitHub repository. Error: {e}")
+    st.error(
+        f"Could not load the Excel file '{EXCEL_FILE}'. Please make sure it is uploaded to the GitHub repository. Error: {e}"
+    )
     st.stop()
 
 selected_sheet = st.sidebar.selectbox("Select Sheet", sheet_names)
@@ -45,7 +47,6 @@ df = df.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 is_monthly_volume_sheet = selected_sheet == "M-Bills Secondary Market Volume"
 is_liquidity_indicators_sheet = selected_sheet == "Liquidity Indicators"
 
-# Dynamic title with latest available date
 latest_title_date = df["Date"].max()
 if is_monthly_volume_sheet:
     formatted_title_date = latest_title_date.strftime("%b %Y")
@@ -136,7 +137,6 @@ if not filtered_df.empty:
                 (filtered_df["Date"].dt.to_period("M") >= start_period) &
                 (filtered_df["Date"].dt.to_period("M") <= end_period)
             ]
-
     else:
         min_date = filtered_df["Date"].min().date()
         max_date = filtered_df["Date"].max().date()
@@ -166,27 +166,49 @@ chart_type = st.sidebar.selectbox(
     ["Line Chart", "Scatter Plot"]
 )
 
-# Checkbox-based metric selection
+# -----------------------------
+# CHECKBOX SELECTION LOGIC
+# -----------------------------
 st.sidebar.markdown("**Select Column(s) to Plot / Analyze**")
 
 default_cols = numeric_columns[:3] if len(numeric_columns) >= 3 else numeric_columns
 selected_columns = []
 
-# Special combined chart option for Liquidity Indicators sheet only
 liquidity_combined_metrics = [
     "Aggregate Balance (AED million)",
     "Reserve Requirements (AED million)",
     "Liquidity Surplus (AED million)"
 ]
 
-show_liquidity_combined = False
-if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
-    show_liquidity_combined = st.sidebar.checkbox("Liquidity Surplus (Combined Chart)", value=False)
+main_liquidity_tab_selected = False
+selected_liquidity_submetrics = []
 
-for col in numeric_columns:
+if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
+    main_liquidity_tab_selected = st.sidebar.checkbox("Liquidity Surplus", value=False)
+
+    if main_liquidity_tab_selected:
+        st.sidebar.markdown("&nbsp;&nbsp;&nbsp;&nbsp;**Select Liquidity Metrics**", unsafe_allow_html=True)
+
+        default_liq = liquidity_combined_metrics.copy()
+
+        for metric in liquidity_combined_metrics:
+            checked = st.sidebar.checkbox(
+                f"↳ {metric}",
+                value=(metric in default_liq),
+                key=f"liq_sub_{metric}"
+            )
+            if checked:
+                selected_liquidity_submetrics.append(metric)
+
+# Exclude the 3 liquidity metrics from the normal checkbox list on Liquidity Indicators sheet
+remaining_numeric_columns = numeric_columns.copy()
+if is_liquidity_indicators_sheet:
+    remaining_numeric_columns = [col for col in numeric_columns if col not in liquidity_combined_metrics]
+
+for col in remaining_numeric_columns:
     checked = st.sidebar.checkbox(
         col,
-        value=(col in default_cols),
+        value=(col in default_cols and col not in liquidity_combined_metrics),
         key=f"metric_checkbox_{selected_sheet}_{col}"
     )
     if checked:
@@ -218,16 +240,18 @@ with tab1:
 with tab2:
     st.subheader("Charts")
 
+    has_any_selection = bool(selected_columns) or bool(selected_liquidity_submetrics)
+
     if not numeric_columns:
         st.warning("No numeric columns found for charting.")
     elif filtered_df.empty:
         st.warning("No data available for the selected date range.")
-    elif not selected_columns and not show_liquidity_combined:
+    elif not has_any_selection:
         st.warning("Please select at least one metric from the sidebar.")
     else:
         color_sequence = [
             "#1f77b4",
-            "#0B3D91",  # dark blue replacing black
+            "#0B3D91",
             "#2ca02c",
             "#9467bd",
             "#ff7f0e",
@@ -240,15 +264,15 @@ with tab2:
 
         vertical_line_color = "black"
         mean_line_color = "darkgray"
-        last_value_label_color = "#0B3D91"  # dark blue replacing black
+        last_value_label_color = "#0B3D91"
 
-        # Special combined chart for Liquidity Indicators
-        if show_liquidity_combined:
-            combined_df = filtered_df[["Date"] + liquidity_combined_metrics].dropna(how="all").sort_values("Date")
+        # -----------------------------
+        # LIQUIDITY SURPLUS MAIN TAB CHART
+        # -----------------------------
+        if selected_liquidity_submetrics:
+            combined_df = filtered_df[["Date"] + selected_liquidity_submetrics].dropna(how="all").sort_values("Date")
 
-            if combined_df.empty:
-                st.warning("No data available for the Liquidity Surplus combined chart.")
-            else:
+            if not combined_df.empty:
                 fig = go.Figure()
 
                 combined_colors = {
@@ -257,12 +281,18 @@ with tab2:
                     "Liquidity Surplus (AED million)": "#0B3D91"
                 }
 
-                for metric in liquidity_combined_metrics:
+                # Liquidity Surplus thick only if 2 or more selected
+                liquidity_line_width = 3.5 if len(selected_liquidity_submetrics) >= 2 else 1.8
+
+                for metric in selected_liquidity_submetrics:
                     metric_df = combined_df[["Date", metric]].dropna().sort_values("Date")
                     if metric_df.empty:
                         continue
 
-                    line_width = 3.5 if metric == "Liquidity Surplus (AED million)" else 1.8
+                    if metric == "Liquidity Surplus (AED million)":
+                        line_width = liquidity_line_width
+                    else:
+                        line_width = 1.8
 
                     if chart_type == "Line Chart":
                         fig.add_trace(
@@ -271,7 +301,10 @@ with tab2:
                                 y=metric_df[metric],
                                 mode="lines",
                                 name=metric,
-                                line=dict(color=combined_colors.get(metric, "#1f77b4"), width=line_width)
+                                line=dict(
+                                    color=combined_colors.get(metric, "#1f77b4"),
+                                    width=line_width
+                                )
                             )
                         )
                     else:
@@ -296,7 +329,7 @@ with tab2:
                         yanchor="middle"
                     )
 
-                y_values = combined_df[liquidity_combined_metrics].stack().dropna()
+                y_values = combined_df[selected_liquidity_submetrics].stack().dropna()
                 if not y_values.empty:
                     y_min = y_values.min()
                     y_max = y_values.max()
@@ -338,7 +371,10 @@ with tab2:
 
                 st.plotly_chart(fig, use_container_width=True)
 
-        elif selected_sheet == "M-Bills Yields":
+        # -----------------------------
+        # M-BILLS YIELDS COMBINED
+        # -----------------------------
+        if selected_sheet == "M-Bills Yields" and selected_columns:
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
             long_df = chart_df.melt(
@@ -420,12 +456,14 @@ with tab2:
 
             st.plotly_chart(fig, use_container_width=True)
 
-        else:
+        # -----------------------------
+        # NORMAL INDIVIDUAL CHARTS
+        # -----------------------------
+        elif selected_sheet != "M-Bills Yields":
             for i, col in enumerate(selected_columns):
                 st.markdown(f"### {col}")
 
                 chart_df = filtered_df[["Date", col]].dropna().sort_values("Date")
-
                 if chart_df.empty:
                     continue
 
@@ -436,11 +474,10 @@ with tab2:
                         y=col,
                         title=f"{col} vs Date"
                     )
-                    line_width = 1.5
                     fig.update_traces(
                         line=dict(
                             color=color_sequence[i % len(color_sequence)],
-                            width=line_width
+                            width=1.5
                         )
                     )
                 else:
@@ -522,10 +559,11 @@ with tab3:
 with tab4:
     st.subheader("Analysis")
 
-    # If combined liquidity chart is selected, use the 3 special metrics in analysis automatically
     analysis_selected_columns = selected_columns.copy()
-    if show_liquidity_combined:
-        analysis_selected_columns = liquidity_combined_metrics.copy()
+    if selected_liquidity_submetrics:
+        analysis_selected_columns = selected_liquidity_submetrics + [
+            col for col in selected_columns if col not in selected_liquidity_submetrics
+        ]
 
     if filtered_df.empty:
         st.warning("No data available for analysis.")
@@ -537,7 +575,6 @@ with tab4:
         if is_monthly_volume_sheet:
             for col in analysis_selected_columns:
                 full_series = filtered_df[["Date", col]].dropna().sort_values("Date")
-
                 if full_series.empty:
                     continue
 
