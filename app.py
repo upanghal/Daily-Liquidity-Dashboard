@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Daily Liquidity Dashboard", layout="wide")
 
@@ -42,6 +43,7 @@ df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 df = df.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 
 is_monthly_volume_sheet = selected_sheet == "M-Bills Secondary Market Volume"
+is_liquidity_indicators_sheet = selected_sheet == "Liquidity Indicators"
 
 # Dynamic title with latest available date
 latest_title_date = df["Date"].max()
@@ -164,12 +166,31 @@ chart_type = st.sidebar.selectbox(
     ["Line Chart", "Scatter Plot"]
 )
 
+# Checkbox-based metric selection
+st.sidebar.markdown("**Select Column(s) to Plot / Analyze**")
+
 default_cols = numeric_columns[:3] if len(numeric_columns) >= 3 else numeric_columns
-selected_columns = st.sidebar.multiselect(
-    "Select Column(s) to Plot / Analyze",
-    numeric_columns,
-    default=default_cols
-)
+selected_columns = []
+
+# Special combined chart option for Liquidity Indicators sheet only
+liquidity_combined_metrics = [
+    "Aggregate Balance (AED million)",
+    "Reserve Requirements (AED million)",
+    "Liquidity Surplus (AED million)"
+]
+
+show_liquidity_combined = False
+if is_liquidity_indicators_sheet and all(metric in numeric_columns for metric in liquidity_combined_metrics):
+    show_liquidity_combined = st.sidebar.checkbox("Liquidity Surplus (Combined Chart)", value=False)
+
+for col in numeric_columns:
+    checked = st.sidebar.checkbox(
+        col,
+        value=(col in default_cols),
+        key=f"metric_checkbox_{selected_sheet}_{col}"
+    )
+    if checked:
+        selected_columns.append(col)
 
 tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Charts", "Data Preview", "Analysis"])
 
@@ -201,12 +222,12 @@ with tab2:
         st.warning("No numeric columns found for charting.")
     elif filtered_df.empty:
         st.warning("No data available for the selected date range.")
-    elif not selected_columns:
-        st.warning("Please select at least one column from the sidebar.")
+    elif not selected_columns and not show_liquidity_combined:
+        st.warning("Please select at least one metric from the sidebar.")
     else:
         color_sequence = [
             "#1f77b4",
-            "#000000",
+            "#0B3D91",  # dark blue replacing black
             "#2ca02c",
             "#9467bd",
             "#ff7f0e",
@@ -219,8 +240,105 @@ with tab2:
 
         vertical_line_color = "black"
         mean_line_color = "darkgray"
+        last_value_label_color = "#0B3D91"  # dark blue replacing black
 
-        if selected_sheet == "M-Bills Yields":
+        # Special combined chart for Liquidity Indicators
+        if show_liquidity_combined:
+            combined_df = filtered_df[["Date"] + liquidity_combined_metrics].dropna(how="all").sort_values("Date")
+
+            if combined_df.empty:
+                st.warning("No data available for the Liquidity Surplus combined chart.")
+            else:
+                fig = go.Figure()
+
+                combined_colors = {
+                    "Aggregate Balance (AED million)": "#1f77b4",
+                    "Reserve Requirements (AED million)": "#2ca02c",
+                    "Liquidity Surplus (AED million)": "#0B3D91"
+                }
+
+                for metric in liquidity_combined_metrics:
+                    metric_df = combined_df[["Date", metric]].dropna().sort_values("Date")
+                    if metric_df.empty:
+                        continue
+
+                    line_width = 3.5 if metric == "Liquidity Surplus (AED million)" else 1.8
+
+                    if chart_type == "Line Chart":
+                        fig.add_trace(
+                            go.Scatter(
+                                x=metric_df["Date"],
+                                y=metric_df[metric],
+                                mode="lines",
+                                name=metric,
+                                line=dict(color=combined_colors.get(metric, "#1f77b4"), width=line_width)
+                            )
+                        )
+                    else:
+                        fig.add_trace(
+                            go.Scatter(
+                                x=metric_df["Date"],
+                                y=metric_df[metric],
+                                mode="markers",
+                                name=metric,
+                                marker=dict(color=combined_colors.get(metric, "#1f77b4"), size=7)
+                            )
+                        )
+
+                    last_row = metric_df.iloc[-1]
+                    fig.add_annotation(
+                        x=last_row["Date"],
+                        y=last_row[metric],
+                        text=f"{last_row[metric]:,.2f}",
+                        showarrow=False,
+                        font=dict(color=last_value_label_color),
+                        xanchor="left",
+                        yanchor="middle"
+                    )
+
+                y_values = combined_df[liquidity_combined_metrics].stack().dropna()
+                if not y_values.empty:
+                    y_min = y_values.min()
+                    y_max = y_values.max()
+
+                    if show_vertical_line:
+                        fig.add_shape(
+                            type="line",
+                            x0=vertical_line_date,
+                            x1=vertical_line_date,
+                            y0=y_min,
+                            y1=y_max,
+                            line=dict(color=vertical_line_color, width=1, dash="dash")
+                        )
+
+                    if show_mean_line:
+                        mean_value = y_values.mean()
+                        fig.add_hline(
+                            y=mean_value,
+                            line_width=1,
+                            line_dash="dash",
+                            line_color=mean_line_color
+                        )
+                        fig.add_annotation(
+                            x=combined_df["Date"].max(),
+                            y=mean_value,
+                            text=f"Mean: {mean_value:,.2f}",
+                            showarrow=False,
+                            font=dict(color=mean_line_color),
+                            xanchor="left",
+                            yanchor="bottom"
+                        )
+
+                fig.update_layout(
+                    title="Liquidity Surplus",
+                    xaxis_title="Date",
+                    yaxis_title="Value",
+                    legend_title="Metric"
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+        elif selected_sheet == "M-Bills Yields":
             chart_df = filtered_df[["Date"] + selected_columns].dropna().sort_values("Date")
 
             long_df = chart_df.melt(
@@ -290,7 +408,7 @@ with tab2:
                         y=last_row["Yield %"],
                         text=f"{last_row['Yield %']:.2f}",
                         showarrow=False,
-                        font=dict(color="black"),
+                        font=dict(color=last_value_label_color),
                         xanchor="left",
                         yanchor="middle"
                     )
@@ -318,10 +436,11 @@ with tab2:
                         y=col,
                         title=f"{col} vs Date"
                     )
+                    line_width = 1.5
                     fig.update_traces(
                         line=dict(
                             color=color_sequence[i % len(color_sequence)],
-                            width=1.5
+                            width=line_width
                         )
                     )
                 else:
@@ -370,7 +489,7 @@ with tab2:
                     y=last_row[col],
                     text=f"{last_row[col]:,.2f}",
                     showarrow=False,
-                    font=dict(color="black"),
+                    font=dict(color=last_value_label_color),
                     xanchor="left",
                     yanchor="middle"
                 )
@@ -403,15 +522,20 @@ with tab3:
 with tab4:
     st.subheader("Analysis")
 
+    # If combined liquidity chart is selected, use the 3 special metrics in analysis automatically
+    analysis_selected_columns = selected_columns.copy()
+    if show_liquidity_combined:
+        analysis_selected_columns = liquidity_combined_metrics.copy()
+
     if filtered_df.empty:
         st.warning("No data available for analysis.")
-    elif not selected_columns:
-        st.warning("Please select at least one column from the sidebar for analysis.")
+    elif not analysis_selected_columns:
+        st.warning("Please select at least one metric from the sidebar for analysis.")
     else:
         analysis_rows = []
 
         if is_monthly_volume_sheet:
-            for col in selected_columns:
+            for col in analysis_selected_columns:
                 full_series = filtered_df[["Date", col]].dropna().sort_values("Date")
 
                 if full_series.empty:
@@ -530,7 +654,7 @@ with tab4:
             pre_df = filtered_df[filtered_df["Date"] < conflict_date].copy()
             post_df = filtered_df[filtered_df["Date"] >= conflict_date].copy()
 
-            for col in selected_columns:
+            for col in analysis_selected_columns:
                 pre_series = pre_df[["Date", col]].dropna().sort_values("Date")
                 post_series = post_df[["Date", col]].dropna().sort_values("Date")
                 full_series = filtered_df[["Date", col]].dropna().sort_values("Date")
