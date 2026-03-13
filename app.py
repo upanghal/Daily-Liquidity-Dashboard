@@ -1,7 +1,3 @@
-The error happened because a normal sentence got pasted into app.py above the Python code.
-
-Delete everything in app.py and replace it with the code below exactly.
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -996,3 +992,4 @@ with tab4:
                 ),
                 use_container_width=True
             )
+
