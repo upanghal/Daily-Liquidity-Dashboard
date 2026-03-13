@@ -1,25 +1,7 @@
-This is happening because the app is caching the old Excel file.
-So even though you uploaded the updated file to GitHub, Streamlit is still serving the previous cached version.
+The error happened because a normal sentence got pasted into app.py above the Python code.
 
-Fix
+Delete everything in app.py and replace it with the code below exactly.
 
-We need to make the Excel reads refresh automatically.
-
-The safest fix is:
-
-keep the dashboard exactly the same
-
-only change the caching so the file refreshes properly
-
-I have updated the code below by adding:
-
-ttl=60 to the cache, so it refreshes within about a minute
-
-a Refresh Data button in the sidebar
-
-cache clearing before reload
-
-Full code
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -63,7 +45,6 @@ def on_sub_liquidity_change():
     )
 
 
-# Manual refresh button
 if st.sidebar.button("Refresh Data"):
     st.cache_data.clear()
     st.rerun()
