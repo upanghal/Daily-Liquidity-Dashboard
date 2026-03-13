@@ -904,7 +904,12 @@ with tab4:
 
                 st.markdown(f"### {metric_full_name}")
 
-                if pd.notna(row["Pre-Conflict (27-Feb-2026)"]) and pd.notna(row["Latest"]):
+                if (
+                    pd.notna(row["Pre-Conflict (27-Feb-2026)"])
+                    and pd.notna(row["Latest"])
+                    and pd.notna(row["Point Absolute Change"])
+                    and pd.notna(row["Point % Change"])
+                ):
                     direction = "increased" if row["Point Absolute Change"] > 0 else "decreased"
                     st.write(
                         f"- From **27-Feb-2026** to the latest available date, **{metric_name}** {direction} "
@@ -914,7 +919,12 @@ with tab4:
                 else:
                     st.write(f"- **{metric_name}** does not have a valid pre-conflict observation for point-in-time comparison.")
 
-                if pd.notna(row["Pre Mean"]) and pd.notna(row["Post Mean"]):
+                if (
+                    pd.notna(row["Pre Mean"])
+                    and pd.notna(row["Post Mean"])
+                    and pd.notna(row["Mean Absolute Change"])
+                    and pd.notna(row["Mean % Change"])
+                ):
                     mean_direction = "increased" if row["Mean Absolute Change"] > 0 else "decreased"
                     st.write(
                         f"- On an average basis, **{metric_name}** {mean_direction} from **{row['Pre Mean']:,.2f}** "
@@ -924,7 +934,12 @@ with tab4:
                 else:
                     st.write(f"- **{metric_name}** does not have enough data for pre-vs-post mean comparison.")
 
-                if pd.notna(row["Pre Mean"]) and pd.notna(row["Latest"]):
+                if (
+                    pd.notna(row["Pre Mean"])
+                    and pd.notna(row["Latest"])
+                    and pd.notna(row["Latest vs Pre Mean Absolute"])
+                    and pd.notna(row["Latest vs Pre Mean %"])
+                ):
                     latest_vs_pre_direction = "above" if row["Latest vs Pre Mean Absolute"] > 0 else "below"
                     st.write(
                         f"- The latest **{metric_name}** reading of **{row['Latest']:,.2f}** is "
@@ -992,4 +1007,3 @@ with tab4:
                 ),
                 use_container_width=True
             )
-
