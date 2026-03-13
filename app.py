@@ -1,3 +1,25 @@
+This is happening because the app is caching the old Excel file.
+So even though you uploaded the updated file to GitHub, Streamlit is still serving the previous cached version.
+
+Fix
+
+We need to make the Excel reads refresh automatically.
+
+The safest fix is:
+
+keep the dashboard exactly the same
+
+only change the caching so the file refreshes properly
+
+I have updated the code below by adding:
+
+ttl=60 to the cache, so it refreshes within about a minute
+
+a Refresh Data button in the sidebar
+
+cache clearing before reload
+
+Full code
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,12 +32,12 @@ st.markdown("Analyze trends by date / time period.")
 EXCEL_FILE = "Daily Liquidity Indicators.xlsx"
 
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def load_excel_sheet(sheet_name):
     return pd.read_excel(EXCEL_FILE, sheet_name=sheet_name, engine="openpyxl")
 
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def get_sheet_names():
     excel_file = pd.ExcelFile(EXCEL_FILE, engine="openpyxl")
     return excel_file.sheet_names
@@ -40,6 +62,11 @@ def on_sub_liquidity_change():
         st.session_state.get(sub_key, False) for sub_key in LIQ_SUB_KEYS.values()
     )
 
+
+# Manual refresh button
+if st.sidebar.button("Refresh Data"):
+    st.cache_data.clear()
+    st.rerun()
 
 try:
     sheet_names = get_sheet_names()
@@ -226,7 +253,6 @@ if is_liquidity_indicators_sheet:
         unsafe_allow_html=True
     )
 
-    # Main tab aligned with normal metrics
     p1, p2 = st.sidebar.columns([0.12, 0.88])
     with p1:
         st.checkbox("", key=LIQ_MAIN_KEY, on_change=on_main_liquidity_change, label_visibility="collapsed")
@@ -241,7 +267,6 @@ if is_liquidity_indicators_sheet:
         unsafe_allow_html=True
     )
 
-    # Child rows with checkbox square moved right
     for metric in liquidity_combined_metrics:
         c1, c2, c3 = st.sidebar.columns([0.16, 0.12, 0.72])
         with c1:
